@@ -26,7 +26,6 @@
   <ItemGroup>
     <Folder Include="Application\Bookings\" />
     <Folder Include="Application\Cottages\Validators\" />
-    <Folder Include="Application\Cottages\Queries\" />
   </ItemGroup>
 
 </Project>

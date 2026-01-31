@@ -1,11 +1,10 @@
-using AutoMapper;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using MobileAppCottage.Application.Cottages.Commands.CreateCottage;
-using MobileAppCottage.Application.Cottages.Commands.DeleteCottage; // DODAJ TO
-using MobileAppCottage.Application.Cottages.Commands.UpdateCottage; // DODAJ TO
+using MobileAppCottage.Application.Cottages.Commands.DeleteCottage;
+using MobileAppCottage.Application.Cottages.Commands.UpdateCottage;
+using MobileAppCottage.Application.Cottages.Queries;
 using MobileAppCottage.Application.DTOs;
-using MobileAppCottage.Domain.Interfaces;
 
 namespace MobileAppCottage.API.Controllers
 {
@@ -14,25 +13,28 @@ namespace MobileAppCottage.API.Controllers
     public class CottageController : ControllerBase
     {
         private readonly IMediator _mediator;
-        private readonly ICottageRepository _cottageRepository;
-        private readonly IMapper _mapper;
 
-        public CottageController(IMediator mediator, ICottageRepository cottageRepository, IMapper mapper)
+        // Repozytorium i Mapper zostaj¹ tutaj tylko, jeœli masz inne metody, 
+        // które ich potrzebuj¹, ale w czystym CQRS MediatR wystarczy.
+        public CottageController(IMediator mediator)
         {
             _mediator = mediator;
-            _cottageRepository = cottageRepository;
-            _mapper = mapper;
         }
 
-        // Twoje dzia³aj¹ce GETy...
+        // Zmienione na CQRS: Wysy³amy zapytanie (Query) do Handlera
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<CottageDto>>> GetAll() => Ok(_mapper.Map<IEnumerable<CottageDto>>(await _cottageRepository.GetAll()));
+        public async Task<ActionResult<IEnumerable<CottageDto>>> GetAll()
+        {
+            var dtos = await _mediator.Send(new GetAllCottagesQuery());
+            return Ok(dtos);
+        }
 
+        // Zmienione na CQRS: Wysy³amy zapytanie (Query) o konkretne ID
         [HttpGet("{id}")]
         public async Task<ActionResult<CottageDto>> GetById([FromRoute] int id)
         {
-            var cottage = await _cottageRepository.GetById(id);
-            return cottage == null ? NotFound() : Ok(_mapper.Map<CottageDto>(cottage));
+            var dto = await _mediator.Send(new GetCottageByIdQuery(id));
+            return Ok(dto);
         }
 
         // TWÓJ DZIA£AJ¥CY POST - NIE RUSZAMY!

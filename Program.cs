@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MobileAppCottage.API.Middleware;
-using MobileAppCottage.Application.Cottages.Commands.CreateCottage; // Dodane, by widzieæ CreateCottageCommand
+using MobileAppCottage.Application.Cottages.Commands.CreateCottage;
 using MobileAppCottage.Application.Mappings;
 using MobileAppCottage.Application.Services;
 using MobileAppCottage.Domain.Entities;
@@ -25,18 +25,22 @@ try
 
     builder.Services.AddControllers();
 
-    // Konfiguracja bazy danych SQL Server
+    // --- POPRAWKA: ODPORNOŒÆ NA B£ÊDY SQL (Retry Logic) ---
+    // Dodajemy EnableRetryOnFailure, bo baza w Dockerze wstaje wolniej ni¿ API
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     builder.Services.AddDbContext<CottageDbContext>(options =>
-        options.UseSqlServer(connectionString));
+        options.UseSqlServer(connectionString, sqlOptions =>
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null)));
 
     // Rejestracja Identity
     builder.Services.AddIdentityApiEndpoints<User>()
         .AddRoles<Role>()
         .AddEntityFrameworkStores<CottageDbContext>();
 
-    // --- POPRAWIONA REJESTRACJA MEDIATR ---
-    // Wskazujemy projekt Application poprzez dowoln¹ klasê, która tam jest
+    // Rejestracja MediatR
     builder.Services.AddMediatR(cfg =>
         cfg.RegisterServicesFromAssembly(typeof(CreateCottageCommand).Assembly));
 
@@ -53,24 +57,32 @@ try
     builder.Services.AddSwaggerGen();
     #endregion
 
-    // --- BUDOWANIE APLIKACJI ---
     var app = builder.Build();
 
-    #region Database Seeding
-    if (args.Length == 0 || !args[0].Contains("ef"))
+    #region Database Initialization & Seeding
+    // --- POPRAWKA: TWORZENIE BAZY W DOCKERZE ---
+    // Musimy wymusiæ stworzenie bazy, zanim Seeder do niej uderzy [cite: 2026-01-14]
+    using (var scope = app.Services.CreateScope())
     {
-        using (var scope = app.Services.CreateScope())
+        var services = scope.ServiceProvider;
+        try
         {
-            var services = scope.ServiceProvider;
-            try
+            var dbContext = services.GetRequiredService<CottageDbContext>();
+
+            // Jeœli baza nie istnieje (np. po raz pierwszy w Dockerze), stwórz j¹ [cite: 2026-01-14]
+            if (app.Environment.IsDevelopment())
             {
-                var seeder = services.GetRequiredService<CottageSeeder>();
-                await seeder.Seed();
+                // EnsureCreated() stworzy bazê bez migracji, co jest szybsze do testów Dockerowych [cite: 2026-01-14]
+                await dbContext.Database.EnsureCreatedAsync();
             }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "B³¹d podczas seedowania bazy danych.");
-            }
+
+            var seeder = services.GetRequiredService<CottageSeeder>();
+            await seeder.Seed();
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "B³¹d podczas inicjalizacji lub seedowania bazy danych.");
+            // Nie rzucamy wyj¹tku dalej, by aplikacja mog³a spróbowaæ wstaæ mimo b³êdu bazy [cite: 2026-01-14]
         }
     }
     #endregion
@@ -84,9 +96,10 @@ try
         app.UseSwaggerUI();
     }
 
-    app.UseHttpsRedirection();
+    // --- UWAGA NA DOCKERA ---
+    // W Dockerze czêsto wy³¹cza siê HttpsRedirection, jeœli nie masz skonfigurowanych certyfikatów
+    // app.UseHttpsRedirection(); 
 
-    // Endpointy dla logowania i rejestracji (Identity)
     app.MapGroup("/identity").MapIdentityApi<User>();
 
     app.UseAuthentication();
