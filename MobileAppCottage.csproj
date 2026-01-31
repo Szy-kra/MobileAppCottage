@@ -24,10 +24,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="_Application\Bookings\" />
-    <Folder Include="_Application\Cottages\Commands\" />
-    <Folder Include="_Application\Cottages\Validators\" />
-    <Folder Include="_Application\Cottages\Queries\" />
+    <Folder Include="Application\Bookings\" />
+    <Folder Include="Application\Cottages\Validators\" />
+    <Folder Include="Application\Cottages\Queries\" />
   </ItemGroup>
 
 </Project>

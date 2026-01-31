@@ -12,8 +12,8 @@ using MobileAppCottage.Infrastructure.Persistence;
 namespace MobileAppCottage.Migrations
 {
     [DbContext(typeof(CottageDbContext))]
-    [Migration("20260130004355_InitialProjectSetup")]
-    partial class InitialProjectSetup
+    [Migration("20260130123946_AddIdentityToCottageId")]
+    partial class AddIdentityToCottageId
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

@@ -12,8 +12,8 @@ using MobileAppCottage.Infrastructure.Persistence;
 namespace MobileAppCottage.Migrations
 {
     [DbContext(typeof(CottageDbContext))]
-    [Migration("20260130004355_InitialProjectSetup")]
-    partial class InitialProjectSetup
+    [Migration("20260130195234_MakeCottageDetailsOptional")]
+    partial class MakeCottageDetailsOptional
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -236,6 +236,36 @@ namespace MobileAppCottage.Migrations
                     b.ToTable("CottageReservations");
                 });
 
+            modelBuilder.Entity("MobileAppCottage.Domain.Entities.Role", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("NormalizedName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("RoleNameIndex")
+                        .HasFilter("[NormalizedName] IS NOT NULL");
+
+                    b.ToTable("AspNetRoles", (string)null);
+                });
+
             modelBuilder.Entity("MobileAppCottage.Domain.Entities.User", b =>
                 {
                     b.Property<string>("Id")
@@ -315,36 +345,6 @@ namespace MobileAppCottage.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("MobileAppCottage.Domain.Entities.Role", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("ConcurrencyStamp")
-                        .IsConcurrencyToken()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("NormalizedName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedName")
-                        .IsUnique()
-                        .HasDatabaseName("RoleNameIndex")
-                        .HasFilter("[NormalizedName] IS NOT NULL");
-
-                    b.ToTable("AspNetRoles", (string)null);
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("MobileAppCottage.Domain.Entities.Role", null)
@@ -413,13 +413,13 @@ namespace MobileAppCottage.Migrations
                             b1.Property<string>("Description")
                                 .HasColumnType("nvarchar(max)");
 
-                            b1.Property<int>("MaxPersons")
+                            b1.Property<int?>("MaxPersons")
                                 .HasColumnType("int");
 
                             b1.Property<string>("PostalCode")
                                 .HasColumnType("nvarchar(max)");
 
-                            b1.Property<decimal>("Price")
+                            b1.Property<decimal?>("Price")
                                 .HasColumnType("decimal(18,2)");
 
                             b1.Property<string>("Street")

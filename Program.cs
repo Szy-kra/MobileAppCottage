@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
-using MobileAppCottage._Application.Mappings;
-using MobileAppCottage._Domain.Entities;
+using MobileAppCottage.API.Middleware;
+using MobileAppCottage.Application.Cottages.Commands.CreateCottage; // Dodane, by widzieæ CreateCottageCommand
+using MobileAppCottage.Application.Mappings;
+using MobileAppCottage.Application.Services;
 using MobileAppCottage.Domain.Entities;
 using MobileAppCottage.Domain.Interfaces;
 using MobileAppCottage.Infrastructure.Persistence;
 using MobileAppCottage.Infrastructure.Repositories;
+using MobileAppCottage.Infrastructure.UserContext;
 using NLog;
 using NLog.Web;
 
@@ -16,12 +19,13 @@ try
     var builder = WebApplication.CreateBuilder(args);
 
     #region Services Configuration
+    // Konfiguracja logowania NLog
     builder.Logging.ClearProviders();
     builder.Host.UseNLog();
 
     builder.Services.AddControllers();
 
-    // Konfiguracja bazy danych
+    // Konfiguracja bazy danych SQL Server
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     builder.Services.AddDbContext<CottageDbContext>(options =>
         options.UseSqlServer(connectionString));
@@ -31,32 +35,49 @@ try
         .AddRoles<Role>()
         .AddEntityFrameworkStores<CottageDbContext>();
 
-    // Rejestracja MediatR - Upewnij siê, ¿e CottageMappingProfile istnieje!
+    // --- POPRAWIONA REJESTRACJA MEDIATR ---
+    // Wskazujemy projekt Application poprzez dowoln¹ klasê, która tam jest
     builder.Services.AddMediatR(cfg =>
-        cfg.RegisterServicesFromAssembly(typeof(CottageMappingProfile).Assembly));
+        cfg.RegisterServicesFromAssembly(typeof(CreateCottageCommand).Assembly));
 
-    // Rejestracja Repozytorium i Seedera
+    // Rejestracja us³ug i repozytoriów
     builder.Services.AddScoped<ICottageRepository, CottageRepository>();
     builder.Services.AddScoped<CottageSeeder>();
-
+    builder.Services.AddScoped<ErrorHandlingMiddleware>();
+    builder.Services.AddMemoryCache();
+    builder.Services.AddScoped<CottageCacheService>();
     builder.Services.AddAutoMapper(typeof(CottageMappingProfile));
+    builder.Services.AddScoped<IUserContext, UserContext>();
+    builder.Services.AddHttpContextAccessor();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
     #endregion
 
-    // --- KLUCZOWY MOMENT ---
+    // --- BUDOWANIE APLIKACJI ---
     var app = builder.Build();
 
     #region Database Seeding
-    using (var scope = app.Services.CreateScope())
+    if (args.Length == 0 || !args[0].Contains("ef"))
     {
-        var services = scope.ServiceProvider;
-        var seeder = services.GetRequiredService<CottageSeeder>();
-        await seeder.Seed();
+        using (var scope = app.Services.CreateScope())
+        {
+            var services = scope.ServiceProvider;
+            try
+            {
+                var seeder = services.GetRequiredService<CottageSeeder>();
+                await seeder.Seed();
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "B³¹d podczas seedowania bazy danych.");
+            }
+        }
     }
     #endregion
 
     #region Middleware Pipeline
+    app.UseMiddleware<ErrorHandlingMiddleware>();
+
     if (app.Environment.IsDevelopment())
     {
         app.UseSwagger();
@@ -64,23 +85,29 @@ try
     }
 
     app.UseHttpsRedirection();
+
+    // Endpointy dla logowania i rejestracji (Identity)
     app.MapGroup("/identity").MapIdentityApi<User>();
+
+    app.UseAuthentication();
     app.UseAuthorization();
+
     app.MapControllers();
     #endregion
 
-    logger.Info("Aplikacja uruchomiona pomyœlnie.");
+    logger.Info("Aplikacja MobileAppCottage uruchomiona pomyœlnie.");
     await app.RunAsync();
 }
 catch (Exception exception)
 {
-    // WYJ¥TEK: To wypisze DOK£ADNY b³¹d w czarnym oknie konsoli
+    if (exception.GetType().Name == "HostAbortedException")
+    {
+        throw;
+    }
+
     Console.WriteLine("!!! B£¥D KRYTYCZNY STARTU !!!");
     Console.WriteLine(exception.Message);
-    if (exception.InnerException != null)
-        Console.WriteLine("INNER EXCEPTION: " + exception.InnerException.Message);
-
-    logger.Error(exception, "Program zatrzymany z powodu b³êdu krytycznego.");
+    logger.Error(exception, "Program zatrzymany z powodu b³êdu krytycznego podczas startu.");
     throw;
 }
 finally
